@@ -1,9 +1,14 @@
 import net.sf.jasperreports.engine.JasperCompileManager;
+import net.sf.jasperreports.engine.JasperFillManager;
+import net.sf.jasperreports.engine.JasperPrint;
+import net.sf.jasperreports.engine.JREmptyDataSource;
+import net.sf.jasperreports.view.JasperViewer;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 public class JasperCompilerGUI extends JFrame {
@@ -11,6 +16,7 @@ public class JasperCompilerGUI extends JFrame {
     private JButton selectFilesButton;
     private JButton selectFolderButton;
     private JButton compileButton;
+    private JButton previewButton;
     private JButton clearButton;
     private JList<String> fileList;
     private DefaultListModel<String> fileListModel;
@@ -19,7 +25,7 @@ public class JasperCompilerGUI extends JFrame {
     public JasperCompilerGUI() {
         setTitle("Jasper Report Compiler");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(700, 500);
+        setSize(750, 550);
         setLocationRelativeTo(null);
         selectedFiles = new ArrayList<>();
         initComponents();
@@ -44,7 +50,7 @@ public class JasperCompilerGUI extends JFrame {
         topPanel.add(selectFilesButton);
         topPanel.add(selectFolderButton);
         topPanel.add(clearButton);
-        
+
         // Panel central dividido: lista de archivos y log
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         splitPane.setResizeWeight(0.4);
@@ -53,9 +59,10 @@ public class JasperCompilerGUI extends JFrame {
         fileListModel = new DefaultListModel<>();
         fileList = new JList<>(fileListModel);
         fileList.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        fileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane fileScrollPane = new JScrollPane(fileList);
         fileScrollPane.setBorder(BorderFactory.createTitledBorder("Archivos JRXML seleccionados (0)"));
-        fileScrollPane.setPreferredSize(new Dimension(680, 150));
+        fileScrollPane.setPreferredSize(new Dimension(730, 150));
 
         // Log de compilación
         logArea = new JTextArea();
@@ -67,16 +74,30 @@ public class JasperCompilerGUI extends JFrame {
         splitPane.setTopComponent(fileScrollPane);
         splitPane.setBottomComponent(logScrollPane);
         
-        // Panel inferior con botón de compilar
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        // Panel inferior con botones de acción
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 5));
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 10, 10));
         
         compileButton = new JButton("Compilar Todo");
         compileButton.setEnabled(false);
-        compileButton.setPreferredSize(new Dimension(150, 35));
+        compileButton.setPreferredSize(new Dimension(140, 35));
         compileButton.addActionListener(e -> compileReports());
         
+        previewButton = new JButton("Vista Previa");
+        previewButton.setEnabled(false);
+        previewButton.setPreferredSize(new Dimension(140, 35));
+        previewButton.setToolTipText("Seleccione un archivo de la lista para previsualizar");
+        previewButton.addActionListener(e -> previewReport());
+        
         bottomPanel.add(compileButton);
+        bottomPanel.add(previewButton);
+        
+        // Listener para habilitar vista previa cuando se selecciona un archivo
+        fileList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                updatePreviewButton();
+            }
+        });
         
         add(topPanel, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
@@ -131,6 +152,7 @@ public class JasperCompilerGUI extends JFrame {
         fileListModel.clear();
         updateFileListTitle();
         compileButton.setEnabled(false);
+        previewButton.setEnabled(false);
         log("Lista de archivos limpiada.");
     }
 
@@ -139,6 +161,84 @@ public class JasperCompilerGUI extends JFrame {
         scrollPane.setBorder(BorderFactory.createTitledBorder(
             "Archivos JRXML seleccionados (" + selectedFiles.size() + ")"));
     }
+
+    private void updatePreviewButton() {
+        int selectedIndex = fileList.getSelectedIndex();
+        if (selectedIndex >= 0 && selectedIndex < selectedFiles.size()) {
+            File selectedFile = selectedFiles.get(selectedIndex);
+            String jasperPath = "output/" + selectedFile.getName().replace(".jrxml", ".jasper");
+            File jasperFile = new File(jasperPath);
+            previewButton.setEnabled(jasperFile.exists());
+            if (!jasperFile.exists()) {
+                previewButton.setToolTipText("Compile primero el archivo seleccionado");
+            } else {
+                previewButton.setToolTipText("Ver vista previa de: " + jasperFile.getName());
+            }
+        } else {
+            previewButton.setEnabled(false);
+            previewButton.setToolTipText("Seleccione un archivo de la lista para previsualizar");
+        }
+    }
+
+    private void previewReport() {
+        int selectedIndex = fileList.getSelectedIndex();
+        if (selectedIndex < 0 || selectedIndex >= selectedFiles.size()) {
+            JOptionPane.showMessageDialog(this, 
+                "Por favor seleccione un archivo de la lista para previsualizar",
+                "Aviso", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        File selectedFile = selectedFiles.get(selectedIndex);
+        String jasperPath = "output/" + selectedFile.getName().replace(".jrxml", ".jasper");
+        File jasperFile = new File(jasperPath);
+
+        if (!jasperFile.exists()) {
+            JOptionPane.showMessageDialog(this,
+                "El archivo .jasper no existe. Compile primero el reporte.",
+                "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        setButtonsEnabled(false);
+        log("Generando vista previa de: " + jasperFile.getName() + "...");
+
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() {
+                try {
+                    JasperPrint jasperPrint = JasperFillManager.fillReport(
+                        jasperFile.getPath(),
+                        new HashMap<>(),
+                        new JREmptyDataSource()
+                    );
+                    
+                    SwingUtilities.invokeLater(() -> {
+                        JasperViewer viewer = new JasperViewer(jasperPrint, false);
+                        viewer.setTitle("Vista Previa - " + jasperFile.getName());
+                        viewer.setVisible(true);
+                        log("✓ Vista previa abierta correctamente");
+                    });
+                } catch (Exception e) {
+                    SwingUtilities.invokeLater(() -> {
+                        log("✗ Error al generar vista previa: " + e.getMessage());
+                        JOptionPane.showMessageDialog(JasperCompilerGUI.this,
+                            "Error al generar vista previa:\n" + e.getMessage(),
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    });
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                setButtonsEnabled(true);
+                updatePreviewButton();
+            }
+        };
+        worker.execute();
+    }
+
 
     private void compileReports() {
         if (selectedFiles.isEmpty()) {
@@ -207,6 +307,7 @@ public class JasperCompilerGUI extends JFrame {
             @Override
             protected void done() {
                 setButtonsEnabled(true);
+                updatePreviewButton();
             }
         };
         
@@ -218,6 +319,7 @@ public class JasperCompilerGUI extends JFrame {
         selectFilesButton.setEnabled(enabled);
         selectFolderButton.setEnabled(enabled);
         clearButton.setEnabled(enabled);
+        previewButton.setEnabled(enabled && fileList.getSelectedIndex() >= 0);
     }
 
     private void log(String message) {
