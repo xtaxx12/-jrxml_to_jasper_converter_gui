@@ -9,9 +9,21 @@ Herramienta con interfaz gráfica para compilar plantillas de reportes JasperRep
 - Selección múltiple de archivos JRXML
 - Selección de carpeta completa (compila todos los .jrxml)
 - Compilación en lote con resumen de resultados
+- Barra de progreso visual durante la compilación
+- Historial de archivos recientes
+- Tema oscuro/claro (persistente)
 - Vista previa de reportes compilados con datos de prueba
 - Log de compilación en tiempo real
 - Soporte para códigos de barras (ZXing)
+
+## Atajos de Teclado
+
+| Atajo | Acción |
+|-------|--------|
+| Ctrl+O | Abrir archivos |
+| Ctrl+Enter | Compilar |
+| Ctrl+L | Limpiar lista |
+| Ctrl+T | Cambiar tema |
 
 ## Estructura del Proyecto
 
@@ -44,11 +56,12 @@ Herramienta con interfaz gráfica para compilar plantillas de reportes JasperRep
 
 3. En la interfaz:
    - Arrastre archivos .jrxml o carpetas directamente a la ventana
-   - "Seleccionar Archivos..." para elegir uno o varios archivos .jrxml
-   - "Seleccionar Carpeta..." para agregar todos los .jrxml de una carpeta
-   - "Limpiar Lista" para vaciar la selección
-   - "Compilar Todo" para generar los archivos .jasper
-   - "Vista Previa" para ver el reporte compilado (seleccione un archivo de la lista)
+   - Use Ctrl+O o "Abrir Archivos" para seleccionar archivos
+   - "Abrir Carpeta" para agregar todos los .jrxml de una carpeta
+   - Seleccione archivos recientes desde el menú desplegable
+   - Use Ctrl+Enter o "Compilar" para generar los archivos .jasper
+   - "Vista Previa" para ver el reporte compilado
+   - Cambie el tema con el botón 🌙/☀️ o Ctrl+T
    - Los archivos compilados se guardan en la carpeta `output/`
 
 ### Línea de Comandos
