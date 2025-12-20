@@ -4,8 +4,10 @@ Herramienta con interfaz gráfica para compilar plantillas de reportes JasperRep
 
 ## Características
 
-- Interfaz gráfica intuitiva con selector de archivos
-- Compilación de reportes JRXML a formato Jasper
+- Interfaz gráfica intuitiva
+- Selección múltiple de archivos JRXML
+- Selección de carpeta completa (compila todos los .jrxml)
+- Compilación en lote con resumen de resultados
 - Log de compilación en tiempo real
 - Soporte para códigos de barras (ZXing)
 
@@ -39,9 +41,11 @@ Herramienta con interfaz gráfica para compilar plantillas de reportes JasperRep
    ```
 
 3. En la interfaz:
-   - Clic en "Seleccionar..." para elegir un archivo .jrxml
-   - Clic en "Compilar" para generar el archivo .jasper
-   - El archivo compilado se guarda en la carpeta `output/`
+   - "Seleccionar Archivos..." para elegir uno o varios archivos .jrxml
+   - "Seleccionar Carpeta..." para agregar todos los .jrxml de una carpeta
+   - "Limpiar Lista" para vaciar la selección
+   - "Compilar Todo" para generar los archivos .jasper
+   - Los archivos compilados se guardan en la carpeta `output/`
 
 ### Línea de Comandos
 
