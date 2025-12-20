@@ -6,6 +6,9 @@ import net.sf.jasperreports.view.JasperViewer;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.*;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -61,7 +64,7 @@ public class JasperCompilerGUI extends JFrame {
         fileList.setFont(new Font("Monospaced", Font.PLAIN, 12));
         fileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane fileScrollPane = new JScrollPane(fileList);
-        fileScrollPane.setBorder(BorderFactory.createTitledBorder("Archivos JRXML seleccionados (0)"));
+        fileScrollPane.setBorder(BorderFactory.createTitledBorder("Archivos JRXML seleccionados (0) - Arrastre archivos aquí"));
         fileScrollPane.setPreferredSize(new Dimension(730, 150));
 
         // Log de compilación
@@ -102,6 +105,85 @@ public class JasperCompilerGUI extends JFrame {
         add(topPanel, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
+        
+        // Configurar Drag & Drop
+        setupDragAndDrop();
+    }
+
+    private void setupDragAndDrop() {
+        new DropTarget(this, DnDConstants.ACTION_COPY, new DropTargetListener() {
+            @Override
+            public void dragEnter(DropTargetDragEvent dtde) {
+                if (isDragAcceptable(dtde)) {
+                    dtde.acceptDrag(DnDConstants.ACTION_COPY);
+                    fileList.setBorder(BorderFactory.createLineBorder(new Color(0, 120, 215), 2));
+                } else {
+                    dtde.rejectDrag();
+                }
+            }
+
+            @Override
+            public void dragOver(DropTargetDragEvent dtde) {
+                // No action needed
+            }
+
+            @Override
+            public void dropActionChanged(DropTargetDragEvent dtde) {
+                // No action needed
+            }
+
+            @Override
+            public void dragExit(DropTargetEvent dte) {
+                fileList.setBorder(null);
+            }
+
+            @Override
+            public void drop(DropTargetDropEvent dtde) {
+                fileList.setBorder(null);
+                try {
+                    dtde.acceptDrop(DnDConstants.ACTION_COPY);
+                    Transferable transferable = dtde.getTransferable();
+                    
+                    if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                        @SuppressWarnings("unchecked")
+                        List<File> droppedFiles = (List<File>) transferable.getTransferData(DataFlavor.javaFileListFlavor);
+                        processDroppedFiles(droppedFiles);
+                    }
+                    dtde.dropComplete(true);
+                } catch (Exception e) {
+                    log("✗ Error al procesar archivos arrastrados: " + e.getMessage());
+                    dtde.dropComplete(false);
+                }
+            }
+
+            private boolean isDragAcceptable(DropTargetDragEvent dtde) {
+                return dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor);
+            }
+        }, true);
+    }
+
+    private void processDroppedFiles(List<File> droppedFiles) {
+        List<File> jrxmlFiles = new ArrayList<>();
+        
+        for (File file : droppedFiles) {
+            if (file.isDirectory()) {
+                File[] filesInDir = file.listFiles((dir, name) -> name.toLowerCase().endsWith(".jrxml"));
+                if (filesInDir != null) {
+                    for (File f : filesInDir) {
+                        jrxmlFiles.add(f);
+                    }
+                }
+            } else if (file.getName().toLowerCase().endsWith(".jrxml")) {
+                jrxmlFiles.add(file);
+            }
+        }
+        
+        if (jrxmlFiles.isEmpty()) {
+            log("⚠ No se encontraron archivos JRXML en los elementos arrastrados");
+            return;
+        }
+        
+        addFilesToList(jrxmlFiles.toArray(new File[0]));
     }
 
     private void selectFiles() {
@@ -158,8 +240,11 @@ public class JasperCompilerGUI extends JFrame {
 
     private void updateFileListTitle() {
         JScrollPane scrollPane = (JScrollPane) fileList.getParent().getParent();
-        scrollPane.setBorder(BorderFactory.createTitledBorder(
-            "Archivos JRXML seleccionados (" + selectedFiles.size() + ")"));
+        String title = "Archivos JRXML seleccionados (" + selectedFiles.size() + ")";
+        if (selectedFiles.isEmpty()) {
+            title += " - Arrastre archivos aquí";
+        }
+        scrollPane.setBorder(BorderFactory.createTitledBorder(title));
     }
 
     private void updatePreviewButton() {
