@@ -42,35 +42,48 @@ Herramienta con interfaz gráfica para compilar plantillas de reportes JasperRep
 
 ## Uso
 
-### Interfaz Gráfica (Recomendado)
+### 🚀 Inicio Rápido (Recomendado)
 
-1. Compilar:
-   ```cmd
-   javac -cp "lib/*" -d output src/JasperCompilerGUI.java
-   ```
+Simplemente ejecuta el script correspondiente:
 
-2. Ejecutar:
-   ```cmd
-   java -cp "output;lib/*" JasperCompilerGUI
-   ```
-
-3. En la interfaz:
-   - Arrastre archivos .jrxml o carpetas directamente a la ventana
-   - Use Ctrl+O o "Abrir Archivos" para seleccionar archivos
-   - "Abrir Carpeta" para agregar todos los .jrxml de una carpeta
-   - Seleccione archivos recientes desde el menú desplegable
-   - Use Ctrl+Enter o "Compilar" para generar los archivos .jasper
-   - "Vista Previa" para ver el reporte compilado
-   - Cambie el tema con el botón 🌙/☀️ o Ctrl+T
-   - Los archivos compilados se guardan en la carpeta `output/`
-
-### Línea de Comandos
-
-Compila todos los archivos .jrxml en la carpeta `input/`:
+| Script | Descripción |
+|--------|-------------|
+| `run.bat` | Inicia la interfaz gráfica (compila automáticamente si es necesario) |
+| `run-cli.bat` | Compila todos los JRXML en `input/` (modo consola) |
+| `compile.bat` | Fuerza recompilación limpia del código fuente |
 
 ```cmd
-javac -cp "lib/*" -d output src/JasperCompiler.java
-java -cp "output;lib/*" JasperCompiler
+# Doble clic en run.bat o desde terminal:
+.\run.bat
+```
+
+### Interfaz Gráfica
+
+En la interfaz puedes:
+- Arrastrar archivos .jrxml o carpetas directamente a la ventana
+- Usar Ctrl+O o "Abrir Archivos" para seleccionar archivos
+- "Abrir Carpeta" para agregar todos los .jrxml de una carpeta
+- Seleccionar archivos recientes desde el menú desplegable
+- Usar Ctrl+Enter o "Compilar" para generar los archivos .jasper
+- "Vista Previa" para ver el reporte compilado
+- Cambiar el tema con el botón 🌙/☀️ o Ctrl+T
+- Los archivos compilados se guardan en la carpeta `output/`
+
+### Línea de Comandos (Modo CLI)
+
+Para compilar todos los archivos .jrxml en la carpeta `input/` sin interfaz:
+
+```cmd
+.\run-cli.bat
+```
+
+### Compilación Manual (Avanzado)
+
+Si prefieres compilar manualmente:
+
+```cmd
+javac -encoding UTF-8 -cp "lib/*" -d output src/*.java
+java -cp "output;lib/*" JasperCompilerGUI
 ```
 
 ## Dependencias Incluidas
