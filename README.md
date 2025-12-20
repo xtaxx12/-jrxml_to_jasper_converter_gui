@@ -5,6 +5,7 @@ Herramienta con interfaz gráfica para compilar plantillas de reportes JasperRep
 ## Características
 
 - Interfaz gráfica intuitiva
+- Drag & Drop de archivos y carpetas directamente a la ventana
 - Selección múltiple de archivos JRXML
 - Selección de carpeta completa (compila todos los .jrxml)
 - Compilación en lote con resumen de resultados
@@ -42,6 +43,7 @@ Herramienta con interfaz gráfica para compilar plantillas de reportes JasperRep
    ```
 
 3. En la interfaz:
+   - Arrastre archivos .jrxml o carpetas directamente a la ventana
    - "Seleccionar Archivos..." para elegir uno o varios archivos .jrxml
    - "Seleccionar Carpeta..." para agregar todos los .jrxml de una carpeta
    - "Limpiar Lista" para vaciar la selección
