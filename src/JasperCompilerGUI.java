@@ -3,110 +3,198 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 public class JasperCompilerGUI extends JFrame {
-    private JTextField filePathField;
     private JTextArea logArea;
-    private JButton selectButton;
+    private JButton selectFilesButton;
+    private JButton selectFolderButton;
     private JButton compileButton;
-    private File selectedFile;
+    private JButton clearButton;
+    private JList<String> fileList;
+    private DefaultListModel<String> fileListModel;
+    private List<File> selectedFiles;
 
     public JasperCompilerGUI() {
         setTitle("Jasper Report Compiler");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(600, 400);
+        setSize(700, 500);
         setLocationRelativeTo(null);
+        selectedFiles = new ArrayList<>();
         initComponents();
     }
 
     private void initComponents() {
         setLayout(new BorderLayout(10, 10));
         
-        // Panel superior para selección de archivo
-        JPanel topPanel = new JPanel(new BorderLayout(5, 5));
+        // Panel superior con botones de selección
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         topPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
         
-        JLabel label = new JLabel("Archivo JRXML:");
-        filePathField = new JTextField();
-        filePathField.setEditable(false);
+        selectFilesButton = new JButton("Seleccionar Archivos...");
+        selectFilesButton.addActionListener(e -> selectFiles());
         
-        selectButton = new JButton("Seleccionar...");
-        selectButton.addActionListener(e -> selectFile());
+        selectFolderButton = new JButton("Seleccionar Carpeta...");
+        selectFolderButton.addActionListener(e -> selectFolder());
         
-        topPanel.add(label, BorderLayout.WEST);
-        topPanel.add(filePathField, BorderLayout.CENTER);
-        topPanel.add(selectButton, BorderLayout.EAST);
+        clearButton = new JButton("Limpiar Lista");
+        clearButton.addActionListener(e -> clearFileList());
         
-        // Panel central para log
+        topPanel.add(selectFilesButton);
+        topPanel.add(selectFolderButton);
+        topPanel.add(clearButton);
+        
+        // Panel central dividido: lista de archivos y log
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        splitPane.setResizeWeight(0.4);
+        
+        // Lista de archivos seleccionados
+        fileListModel = new DefaultListModel<>();
+        fileList = new JList<>(fileListModel);
+        fileList.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        JScrollPane fileScrollPane = new JScrollPane(fileList);
+        fileScrollPane.setBorder(BorderFactory.createTitledBorder("Archivos JRXML seleccionados (0)"));
+        fileScrollPane.setPreferredSize(new Dimension(680, 150));
+
+        // Log de compilación
         logArea = new JTextArea();
         logArea.setEditable(false);
         logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        JScrollPane scrollPane = new JScrollPane(logArea);
-        scrollPane.setBorder(BorderFactory.createTitledBorder("Log de Compilación"));
+        JScrollPane logScrollPane = new JScrollPane(logArea);
+        logScrollPane.setBorder(BorderFactory.createTitledBorder("Log de Compilación"));
+        
+        splitPane.setTopComponent(fileScrollPane);
+        splitPane.setBottomComponent(logScrollPane);
         
         // Panel inferior con botón de compilar
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 10, 10));
         
-        compileButton = new JButton("Compilar");
+        compileButton = new JButton("Compilar Todo");
         compileButton.setEnabled(false);
         compileButton.setPreferredSize(new Dimension(150, 35));
-        compileButton.addActionListener(e -> compileReport());
+        compileButton.addActionListener(e -> compileReports());
         
         bottomPanel.add(compileButton);
         
         add(topPanel, BorderLayout.NORTH);
-        add(scrollPane, BorderLayout.CENTER);
+        add(splitPane, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
     }
 
-    private void selectFile() {
+    private void selectFiles() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setCurrentDirectory(new File("input"));
         fileChooser.setFileFilter(new FileNameExtensionFilter("Archivos JRXML (*.jrxml)", "jrxml"));
+        fileChooser.setMultiSelectionEnabled(true);
         
         int result = fileChooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
-            selectedFile = fileChooser.getSelectedFile();
-            filePathField.setText(selectedFile.getAbsolutePath());
-            compileButton.setEnabled(true);
-            log("Archivo seleccionado: " + selectedFile.getName());
+            File[] files = fileChooser.getSelectedFiles();
+            addFilesToList(files);
         }
     }
 
-    private void compileReport() {
-        if (selectedFile == null || !selectedFile.exists()) {
-            JOptionPane.showMessageDialog(this, "Por favor seleccione un archivo JRXML válido", 
+    private void selectFolder() {
+        JFileChooser folderChooser = new JFileChooser();
+        folderChooser.setCurrentDirectory(new File("input"));
+        folderChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        
+        int result = folderChooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File folder = folderChooser.getSelectedFile();
+            File[] jrxmlFiles = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".jrxml"));
+            
+            if (jrxmlFiles == null || jrxmlFiles.length == 0) {
+                log("⚠ No se encontraron archivos JRXML en: " + folder.getName());
+                return;
+            }
+            addFilesToList(jrxmlFiles);
+        }
+    }
+
+    private void addFilesToList(File[] files) {
+        for (File file : files) {
+            if (!selectedFiles.contains(file)) {
+                selectedFiles.add(file);
+                fileListModel.addElement(file.getAbsolutePath());
+            }
+        }
+        updateFileListTitle();
+        compileButton.setEnabled(!selectedFiles.isEmpty());
+        log("✓ " + files.length + " archivo(s) agregado(s). Total: " + selectedFiles.size());
+    }
+
+    private void clearFileList() {
+        selectedFiles.clear();
+        fileListModel.clear();
+        updateFileListTitle();
+        compileButton.setEnabled(false);
+        log("Lista de archivos limpiada.");
+    }
+
+    private void updateFileListTitle() {
+        JScrollPane scrollPane = (JScrollPane) fileList.getParent().getParent();
+        scrollPane.setBorder(BorderFactory.createTitledBorder(
+            "Archivos JRXML seleccionados (" + selectedFiles.size() + ")"));
+    }
+
+    private void compileReports() {
+        if (selectedFiles.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Por favor seleccione al menos un archivo JRXML",
                 "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        compileButton.setEnabled(false);
-        selectButton.setEnabled(false);
+        setButtonsEnabled(false);
         
         SwingWorker<Void, String> worker = new SwingWorker<>() {
+            private int successCount = 0;
+            private int errorCount = 0;
+
             @Override
             protected Void doInBackground() {
+                new File("output").mkdirs();
+                publish("\n═══════════════════════════════════════════");
+                publish("Iniciando compilación de " + selectedFiles.size() + " archivo(s)...");
+                publish("═══════════════════════════════════════════\n");
+                
+                long totalStart = System.currentTimeMillis();
+                
+                for (File file : selectedFiles) {
+                    compileFile(file);
+                }
+                
+                long totalEnd = System.currentTimeMillis();
+                publish("\n═══════════════════════════════════════════");
+                publish("RESUMEN DE COMPILACIÓN");
+                publish("───────────────────────────────────────────");
+                publish("  ✓ Exitosos: " + successCount);
+                publish("  ✗ Errores:  " + errorCount);
+                publish("  Tiempo total: " + (totalEnd - totalStart) + "ms");
+                publish("═══════════════════════════════════════════\n");
+                
+                return null;
+            }
+
+            private void compileFile(File file) {
                 try {
-                    String inputFile = selectedFile.getPath();
-                    String outputFile = "output/" + selectedFile.getName().replace(".jrxml", ".jasper");
+                    String inputFile = file.getPath();
+                    String outputFile = "output/" + file.getName().replace(".jrxml", ".jasper");
                     
-                    // Crear carpeta output si no existe
-                    new File("output").mkdirs();
-                    
-                    publish("Compilando: " + selectedFile.getName() + "...");
+                    publish("Compilando: " + file.getName() + "...");
                     long start = System.currentTimeMillis();
                     
                     JasperCompileManager.compileReportToFile(inputFile, outputFile);
                     
                     long end = System.currentTimeMillis();
-                    publish("✓ Compilación exitosa!");
-                    publish("  Archivo generado: " + outputFile);
-                    publish("  Tiempo: " + (end - start) + "ms");
+                    publish("  ✓ OK (" + (end - start) + "ms) → " + outputFile);
+                    successCount++;
                 } catch (Exception e) {
-                    publish("✗ Error de compilación: " + e.getMessage());
+                    publish("  ✗ ERROR: " + e.getMessage());
+                    errorCount++;
                 }
-                return null;
             }
 
             @Override
@@ -118,12 +206,18 @@ public class JasperCompilerGUI extends JFrame {
 
             @Override
             protected void done() {
-                compileButton.setEnabled(true);
-                selectButton.setEnabled(true);
+                setButtonsEnabled(true);
             }
         };
         
         worker.execute();
+    }
+
+    private void setButtonsEnabled(boolean enabled) {
+        compileButton.setEnabled(enabled && !selectedFiles.isEmpty());
+        selectFilesButton.setEnabled(enabled);
+        selectFolderButton.setEnabled(enabled);
+        clearButton.setEnabled(enabled);
     }
 
     private void log(String message) {
@@ -135,8 +229,9 @@ public class JasperCompilerGUI extends JFrame {
         SwingUtilities.invokeLater(() -> {
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception ignored) {}
-            
+            } catch (Exception e) {
+                System.err.println("Error al configurar Look and Feel: " + e.getMessage());
+            }
             new JasperCompilerGUI().setVisible(true);
         });
     }
