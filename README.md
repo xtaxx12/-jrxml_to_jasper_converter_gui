@@ -1,37 +1,61 @@
-# Jasper Reports Compiler
+# JRXML to Jasper Converter GUI
 
-A simple utility for compiling JRXML templates into Jasper report files.
+Herramienta con interfaz gráfica para compilar plantillas de reportes JasperReports (.jrxml) a archivos compilados (.jasper).
 
-## Project Structure
+## Características
+
+- Interfaz gráfica intuitiva con selector de archivos
+- Compilación de reportes JRXML a formato Jasper
+- Log de compilación en tiempo real
+- Soporte para códigos de barras (ZXing)
+
+## Estructura del Proyecto
 
 ```
-├── input/    # Place your .jrxml files here
-├── lib/      # JasperReports dependencies
-├── output/   # Compiled .jasper files output
-└── src/      # Source code (JasperCompiler.java)
+├── input/    # Archivos .jrxml de entrada
+├── lib/      # Dependencias de JasperReports
+├── output/   # Archivos .jasper compilados
+└── src/      # Código fuente
+    ├── JasperCompiler.java      # Compilador por línea de comandos
+    └── JasperCompilerGUI.java   # Interfaz gráfica
 ```
 
-## How to Use
+## Requisitos
 
-1. **Place** your `.jrxml` files in the `input/` folder
-2. **Compile** the Java program:
+- Java JDK 8 o superior
+
+## Uso
+
+### Interfaz Gráfica (Recomendado)
+
+1. Compilar:
+   ```cmd
+   javac -cp "lib/*" -d output src/JasperCompilerGUI.java
    ```
-   javac -cp "lib/*" src/JasperCompiler.java -d output/
+
+2. Ejecutar:
+   ```cmd
+   java -cp "output;lib/*" JasperCompilerGUI
    ```
-3. **Run** the compiler:
-   ```
-   java -cp "output;lib/*" JasperCompiler
-   ```
-4. **Find** your compiled `.jasper` files in the `output/` folder
 
-## Customizing
+3. En la interfaz:
+   - Clic en "Seleccionar..." para elegir un archivo .jrxml
+   - Clic en "Compilar" para generar el archivo .jasper
+   - El archivo compilado se guarda en la carpeta `output/`
 
-### Change Input/Output Folders
-Edit `src/JasperCompiler.java` to modify the input and output directory paths.
+### Línea de Comandos
 
-### Change JasperReports Version
-Replace the JasperReports JAR files in the `lib/` directory with your preferred version.
+Compila todos los archivos .jrxml en la carpeta `input/`:
 
-## Example
+```cmd
+javac -cp "lib/*" -d output src/JasperCompiler.java
+java -cp "output;lib/*" JasperCompiler
+```
 
-The project includes an example JRXML file (`example.jrxml`). After running the compiler, the generated Jasper file (`example.jasper`) will be in the output directory.
+## Dependencias Incluidas
+
+- JasperReports 6.0.0
+- ZXing (códigos de barras)
+- iText PDF
+- Apache POI (Excel)
+- Y otras dependencias en `lib/`
