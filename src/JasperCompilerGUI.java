@@ -40,10 +40,15 @@ public class JasperCompilerGUI extends JFrame {
     private JComboBox<String> historyComboBox;
     private DefaultComboBoxModel<String> historyModel;
     private JPanel topPanel;
+    private JPanel headerPanel;
     private JPanel buttonsPanel;
     private JPanel historyPanel;
     private JPanel bottomPanel;
     private JPanel actionPanel;
+    private JPanel statusPanel;
+    private JLabel statusLabel;
+    private JLabel titleLabel;
+    private JLabel subtitleLabel;
     private JSplitPane splitPane;
     private JScrollPane fileScrollPane;
     private JScrollPane logScrollPane;
@@ -84,6 +89,8 @@ public class JasperCompilerGUI extends JFrame {
 
     private static final Font UI_FONT = new Font("SansSerif", Font.PLAIN, 13);
     private static final Font UI_BOLD_FONT = new Font("SansSerif", Font.BOLD, 13);
+    private static final Font TITLE_FONT = new Font("SansSerif", Font.BOLD, 20);
+    private static final Font SUBTITLE_FONT = new Font("SansSerif", Font.PLAIN, 13);
     private static final Font MONO_FONT = new Font("Monospaced", Font.PLAIN, 12);
 
     public JasperCompilerGUI() {
@@ -103,6 +110,8 @@ public class JasperCompilerGUI extends JFrame {
 
     private void initComponents() {
         setLayout(new BorderLayout(10, 10));
+
+        headerPanel = createHeaderPanel();
         
         // Panel superior con botones de selección
         topPanel = new JPanel(new BorderLayout());
@@ -110,19 +119,19 @@ public class JasperCompilerGUI extends JFrame {
         
         buttonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         
-        selectFilesButton = new JButton("Abrir Archivos (Ctrl+O)");
+        selectFilesButton = new RoundedButton("Abrir Archivos (Ctrl+O)");
         selectFilesButton.setFont(UI_BOLD_FONT);
         selectFilesButton.addActionListener(e -> selectFiles());
         
-        selectFolderButton = new JButton("Abrir Carpeta");
+        selectFolderButton = new RoundedButton("Abrir Carpeta");
         selectFolderButton.setFont(UI_BOLD_FONT);
         selectFolderButton.addActionListener(e -> selectFolder());
         
-        clearButton = new JButton("Limpiar");
+        clearButton = new RoundedButton("Limpiar");
         clearButton.setFont(UI_BOLD_FONT);
         clearButton.addActionListener(e -> clearFileList());
         
-        themeButton = new JButton("🌙");
+        themeButton = new RoundedButton("🌙");
         themeButton.setToolTipText("Cambiar tema");
         themeButton.setPreferredSize(new Dimension(46, 30));
         themeButton.setFont(new Font("Dialog", Font.PLAIN, 14));
@@ -201,13 +210,13 @@ public class JasperCompilerGUI extends JFrame {
         // Botones de acción
         actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 8));
         
-        compileButton = new JButton("Compilar (Ctrl+Enter)");
+        compileButton = new RoundedButton("Compilar (Ctrl+Enter)");
         compileButton.setFont(UI_BOLD_FONT);
         compileButton.setEnabled(false);
         compileButton.setPreferredSize(new Dimension(160, 35));
         compileButton.addActionListener(e -> compileReports());
         
-        previewButton = new JButton("Vista Previa");
+        previewButton = new RoundedButton("Vista Previa");
         previewButton.setFont(UI_BOLD_FONT);
         previewButton.setEnabled(false);
         previewButton.setPreferredSize(new Dimension(140, 35));
@@ -217,8 +226,15 @@ public class JasperCompilerGUI extends JFrame {
         actionPanel.add(compileButton);
         actionPanel.add(previewButton);
         
+        statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        statusLabel = new JLabel();
+        statusLabel.setFont(UI_BOLD_FONT);
+        statusLabel.setBorder(new EmptyBorder(5, 10, 5, 10));
+        statusPanel.add(statusLabel);
+
         bottomPanel.add(progressBar, BorderLayout.NORTH);
         bottomPanel.add(actionPanel, BorderLayout.CENTER);
+        bottomPanel.add(statusPanel, BorderLayout.SOUTH);
         
         // Listener para habilitar vista previa cuando se selecciona un archivo
         fileList.addListSelectionListener(e -> {
@@ -227,7 +243,11 @@ public class JasperCompilerGUI extends JFrame {
             }
         });
         
-        add(topPanel, BorderLayout.NORTH);
+        JPanel northContainer = new JPanel(new BorderLayout(0, 0));
+        northContainer.add(headerPanel, BorderLayout.NORTH);
+        northContainer.add(topPanel, BorderLayout.SOUTH);
+
+        add(northContainer, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
         
@@ -282,6 +302,29 @@ public class JasperCompilerGUI extends JFrame {
         applyTheme();
         themeButton.setText(isDarkTheme ? "☀️" : "🌙");
         log("Tema cambiado a: " + (isDarkTheme ? "Oscuro" : "Claro"));
+        updateStatusLabel();
+    }
+
+    private JPanel createHeaderPanel() {
+        JPanel container = new GradientHeaderPanel();
+        container.setLayout(new BorderLayout(8, 6));
+        container.setBorder(new EmptyBorder(14, 14, 12, 14));
+
+        titleLabel = new JLabel("JRXML to Jasper Compiler");
+        titleLabel.setFont(TITLE_FONT);
+
+        subtitleLabel = new JLabel("Compilacion visual, lotes y saneamiento automatico de compatibilidad");
+        subtitleLabel.setFont(SUBTITLE_FONT);
+
+        JPanel textPanel = new JPanel();
+        textPanel.setOpaque(false);
+        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+        textPanel.add(titleLabel);
+        textPanel.add(Box.createVerticalStrut(3));
+        textPanel.add(subtitleLabel);
+
+        container.add(textPanel, BorderLayout.WEST);
+        return container;
     }
 
     private void applyTheme() {
@@ -327,6 +370,7 @@ public class JasperCompilerGUI extends JFrame {
         getContentPane().setBackground(bg);
 
         stylePanel(topPanel, panel);
+        stylePanel(statusPanel, panel);
         stylePanel(buttonsPanel, panel);
         stylePanel(historyPanel, panel);
         stylePanel(bottomPanel, panel);
@@ -357,6 +401,13 @@ public class JasperCompilerGUI extends JFrame {
         progressBar.setForeground(currentAccentColor);
         progressBar.setString(progressBar.getString() == null ? "Listo" : progressBar.getString());
         progressBar.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+
+        statusLabel.setForeground(isDarkTheme ? DARK_BG : Color.WHITE);
+        statusLabel.setOpaque(true);
+        statusLabel.setBackground(currentAccentColor);
+        titleLabel.setForeground(isDarkTheme ? new Color(240, 244, 250) : new Color(21, 35, 56));
+        subtitleLabel.setForeground(currentMutedTextColor);
+        updateStatusLabel();
     }
 
     private void stylePanel(JPanel panel, Color color) {
@@ -398,7 +449,10 @@ public class JasperCompilerGUI extends JFrame {
         TitledBorder border = BorderFactory.createTitledBorder(new LineBorder(borderColor, 1, true), title);
         border.setTitleColor(titleColor);
         border.setTitleFont(UI_BOLD_FONT);
-        scrollPane.setBorder(border);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            new EmptyBorder(4, 4, 4, 4),
+            border
+        ));
     }
 
     private void applyThemeToComponent(Container container, Color bg, Color fg, Color panelBg) {
@@ -583,6 +637,8 @@ public class JasperCompilerGUI extends JFrame {
         }
         updateFileListTitle();
         compileButton.setEnabled(!selectedFiles.isEmpty());
+        styleButton(compileButton, true);
+        updateStatusLabel();
         log("✓ " + files.length + " archivo(s) agregado(s). Total: " + selectedFiles.size());
     }
 
@@ -594,6 +650,7 @@ public class JasperCompilerGUI extends JFrame {
         previewButton.setEnabled(false);
         progressBar.setValue(0);
         progressBar.setString("Listo");
+        updateStatusLabel();
         log("Lista limpiada.");
     }
 
@@ -884,6 +941,16 @@ public class JasperCompilerGUI extends JFrame {
         styleButton(compileButton, true);
         styleButton(previewButton, false);
         styleButton(themeButton, false);
+        updateStatusLabel();
+    }
+
+    private void updateStatusLabel() {
+        if (statusLabel == null) {
+            return;
+        }
+        String themeName = isDarkTheme ? "Oscuro" : "Claro";
+        String mode = compileButton != null && compileButton.isEnabled() ? "Listo para compilar" : "Sin archivos";
+        statusLabel.setText("  " + themeName + "  |  " + selectedFiles.size() + " archivo(s)  |  " + mode + "  ");
     }
 
     private void log(String message) {
@@ -900,5 +967,65 @@ public class JasperCompilerGUI extends JFrame {
             }
             new JasperCompilerGUI().setVisible(true);
         });
+    }
+
+    private static class GradientHeaderPanel extends JPanel {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            Color c1 = new Color(33, 87, 188);
+            Color c2 = new Color(15, 132, 147);
+            GradientPaint paint = new GradientPaint(0, 0, c1, getWidth(), getHeight(), c2);
+            g2.setPaint(paint);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 18, 18);
+
+            g2.setColor(new Color(255, 255, 255, 35));
+            g2.fillOval(getWidth() - 180, -40, 220, 160);
+            g2.fillOval(getWidth() - 90, 25, 140, 120);
+            g2.dispose();
+        }
+    }
+
+    private static class RoundedButton extends JButton {
+        private static final int ARC = 12;
+
+        RoundedButton(String text) {
+            super(text);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setOpaque(false);
+            setCursor(new Cursor(Cursor.HAND_CURSOR));
+            setMargin(new Insets(6, 14, 6, 14));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            Color bg = getBackground();
+            if (getModel().isArmed() || getModel().isPressed()) {
+                bg = bg.darker();
+            } else if (getModel().isRollover()) {
+                bg = bg.brighter();
+            }
+
+            g2.setColor(bg);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), ARC, ARC);
+            super.paintComponent(g2);
+            g2.dispose();
+        }
+
+        @Override
+        protected void paintBorder(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(getForeground().equals(Color.WHITE) ? new Color(0, 0, 0, 60) : new Color(0, 0, 0, 30));
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, ARC, ARC);
+            g2.dispose();
+        }
     }
 }
