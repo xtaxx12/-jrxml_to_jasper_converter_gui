@@ -4,6 +4,9 @@ import net.sf.jasperreports.engine.JasperPrint;
 import net.sf.jasperreports.engine.JREmptyDataSource;
 import net.sf.jasperreports.view.JasperViewer;
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.border.TitledBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
@@ -12,10 +15,15 @@ import java.awt.dnd.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.prefs.Preferences;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class JasperCompilerGUI extends JFrame {
     private JTextArea logArea;
@@ -31,21 +39,58 @@ public class JasperCompilerGUI extends JFrame {
     private JProgressBar progressBar;
     private JComboBox<String> historyComboBox;
     private DefaultComboBoxModel<String> historyModel;
+    private JPanel topPanel;
+    private JPanel buttonsPanel;
+    private JPanel historyPanel;
+    private JPanel bottomPanel;
+    private JPanel actionPanel;
+    private JSplitPane splitPane;
+    private JScrollPane fileScrollPane;
+    private JScrollPane logScrollPane;
     private boolean isDarkTheme = false;
     private Preferences prefs;
     private static final int MAX_HISTORY = 10;
-    
-    // Colores para temas
-    private static final Color DARK_BG = new Color(45, 45, 45);
-    private static final Color DARK_FG = new Color(220, 220, 220);
-    private static final Color DARK_PANEL = new Color(60, 60, 60);
-    private static final Color LIGHT_BG = new Color(240, 240, 240);
-    private static final Color LIGHT_FG = new Color(30, 30, 30);
+    private static final Pattern ROOT_UUID_PATTERN = Pattern.compile(
+        "(?s)(<jasperReport\\b[^>]*?)\\s+uuid\\s*=\\s*(\"[^\"]*\"|'[^']*')"
+    );
+    private static final Pattern OPEN_QUERY_PATTERN = Pattern.compile("<query(\\s[^>]*)?>");
+    private static final Pattern CLOSE_QUERY_PATTERN = Pattern.compile("</query>");
+    private static final Pattern VARIABLE_BLOCK_PATTERN = Pattern.compile("(?s)<variable\\b[^>]*>.*?</variable>");
+    private static final Pattern GROUP_BLOCK_PATTERN = Pattern.compile("(?s)<group\\b[^>]*>.*?</group>");
+    private static final Pattern OPEN_EXPRESSION_PATTERN = Pattern.compile("<expression(\\s[^>]*)?>");
+    private static final Pattern CLOSE_EXPRESSION_PATTERN = Pattern.compile("</expression>");
+
+    // Colores y estilos de tema
+    private static final Color DARK_BG = new Color(24, 26, 31);
+    private static final Color DARK_PANEL = new Color(34, 37, 43);
+    private static final Color DARK_SURFACE = new Color(40, 44, 52);
+    private static final Color DARK_FG = new Color(230, 235, 242);
+    private static final Color DARK_BORDER = new Color(74, 79, 90);
+    private static final Color DARK_ACCENT = new Color(88, 166, 255);
+    private static final Color DARK_MUTED = new Color(161, 169, 181);
+
+    private static final Color LIGHT_BG = new Color(241, 244, 249);
+    private static final Color LIGHT_PANEL = new Color(252, 253, 255);
+    private static final Color LIGHT_SURFACE = new Color(255, 255, 255);
+    private static final Color LIGHT_FG = new Color(28, 34, 45);
+    private static final Color LIGHT_BORDER = new Color(202, 211, 224);
+    private static final Color LIGHT_ACCENT = new Color(21, 115, 230);
+    private static final Color LIGHT_MUTED = new Color(95, 108, 128);
+
+    private Color currentTextColor;
+    private Color currentBorderColor;
+    private Color currentAccentColor;
+    private Color currentMutedTextColor;
+
+    private static final Font UI_FONT = new Font("SansSerif", Font.PLAIN, 13);
+    private static final Font UI_BOLD_FONT = new Font("SansSerif", Font.BOLD, 13);
+    private static final Font MONO_FONT = new Font("Monospaced", Font.PLAIN, 12);
 
     public JasperCompilerGUI() {
         setTitle("Jasper Report Compiler");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(800, 600);
+        setSize(920, 680);
+        setMinimumSize(new Dimension(840, 620));
         setLocationRelativeTo(null);
         selectedFiles = new ArrayList<>();
         prefs = Preferences.userNodeForPackage(JasperCompilerGUI.class);
@@ -60,23 +105,27 @@ public class JasperCompilerGUI extends JFrame {
         setLayout(new BorderLayout(10, 10));
         
         // Panel superior con botones de selección
-        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel = new JPanel(new BorderLayout());
         topPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
         
-        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        buttonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         
         selectFilesButton = new JButton("Abrir Archivos (Ctrl+O)");
+        selectFilesButton.setFont(UI_BOLD_FONT);
         selectFilesButton.addActionListener(e -> selectFiles());
         
         selectFolderButton = new JButton("Abrir Carpeta");
+        selectFolderButton.setFont(UI_BOLD_FONT);
         selectFolderButton.addActionListener(e -> selectFolder());
         
         clearButton = new JButton("Limpiar");
+        clearButton.setFont(UI_BOLD_FONT);
         clearButton.addActionListener(e -> clearFileList());
         
         themeButton = new JButton("🌙");
         themeButton.setToolTipText("Cambiar tema");
-        themeButton.setPreferredSize(new Dimension(45, 25));
+        themeButton.setPreferredSize(new Dimension(46, 30));
+        themeButton.setFont(new Font("Dialog", Font.PLAIN, 14));
         themeButton.addActionListener(e -> toggleTheme());
         
         buttonsPanel.add(selectFilesButton);
@@ -86,11 +135,13 @@ public class JasperCompilerGUI extends JFrame {
         buttonsPanel.add(themeButton);
 
         // Panel de historial
-        JPanel historyPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 5));
+        historyPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 5));
         JLabel historyLabel = new JLabel("Recientes:");
+        historyLabel.setFont(UI_BOLD_FONT);
         historyModel = new DefaultComboBoxModel<>();
         historyComboBox = new JComboBox<>(historyModel);
-        historyComboBox.setPreferredSize(new Dimension(250, 25));
+        historyComboBox.setFont(UI_FONT);
+        historyComboBox.setPreferredSize(new Dimension(285, 30));
         historyComboBox.addActionListener(e -> loadFromHistory());
         historyPanel.add(historyLabel);
         historyPanel.add(historyComboBox);
@@ -99,47 +150,65 @@ public class JasperCompilerGUI extends JFrame {
         topPanel.add(historyPanel, BorderLayout.EAST);
 
         // Panel central dividido: lista de archivos y log
-        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         splitPane.setResizeWeight(0.4);
+        splitPane.setBorder(null);
+        splitPane.setContinuousLayout(true);
         
         // Lista de archivos seleccionados
         fileListModel = new DefaultListModel<>();
         fileList = new JList<>(fileListModel);
-        fileList.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        fileList.setFont(MONO_FONT);
+        fileList.setFixedCellHeight(24);
         fileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        JScrollPane fileScrollPane = new JScrollPane(fileList);
+        fileList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                          boolean isSelected, boolean cellHasFocus) {
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                label.setBorder(new EmptyBorder(0, 8, 0, 8));
+                return label;
+            }
+        });
+        fileScrollPane = new JScrollPane(fileList);
         fileScrollPane.setBorder(BorderFactory.createTitledBorder("Archivos JRXML (0) - Arrastre aquí o Ctrl+O"));
         fileScrollPane.setPreferredSize(new Dimension(780, 150));
 
         // Log de compilación
         logArea = new JTextArea();
         logArea.setEditable(false);
-        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        logArea.setFont(MONO_FONT);
+        logArea.setMargin(new Insets(8, 10, 8, 10));
         JScrollPane logScrollPane = new JScrollPane(logArea);
         logScrollPane.setBorder(BorderFactory.createTitledBorder("Log de Compilación"));
+        this.logScrollPane = logScrollPane;
         
         splitPane.setTopComponent(fileScrollPane);
         splitPane.setBottomComponent(logScrollPane);
         
         // Panel inferior con barra de progreso y botones
-        JPanel bottomPanel = new JPanel(new BorderLayout(10, 5));
+        bottomPanel = new JPanel(new BorderLayout(10, 5));
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 10, 10));
         
         // Barra de progreso
         progressBar = new JProgressBar(0, 100);
+        progressBar.setFont(UI_BOLD_FONT);
         progressBar.setStringPainted(true);
         progressBar.setString("Listo");
         progressBar.setValue(0);
+        progressBar.setBorderPainted(false);
         
         // Botones de acción
-        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 5));
+        actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 8));
         
         compileButton = new JButton("Compilar (Ctrl+Enter)");
+        compileButton.setFont(UI_BOLD_FONT);
         compileButton.setEnabled(false);
         compileButton.setPreferredSize(new Dimension(160, 35));
         compileButton.addActionListener(e -> compileReports());
         
         previewButton = new JButton("Vista Previa");
+        previewButton.setFont(UI_BOLD_FONT);
         previewButton.setEnabled(false);
         previewButton.setPreferredSize(new Dimension(140, 35));
         previewButton.setToolTipText("Seleccione un archivo de la lista para previsualizar");
@@ -224,17 +293,112 @@ public class JasperCompilerGUI extends JFrame {
         applyThemeToComponent(getContentPane(), bg, fg, panelBg);
         
         if (logArea != null) {
-            logArea.setBackground(panelBg);
-            logArea.setForeground(fg);
-            logArea.setCaretColor(fg);
+            Color surface = isDarkTheme ? DARK_SURFACE : LIGHT_SURFACE;
+            logArea.setBackground(surface);
+            logArea.setForeground(currentTextColor);
+            logArea.setCaretColor(currentTextColor);
         }
         if (fileList != null) {
-            fileList.setBackground(panelBg);
-            fileList.setForeground(fg);
+            Color surface = isDarkTheme ? DARK_SURFACE : LIGHT_SURFACE;
+            fileList.setBackground(surface);
+            fileList.setForeground(currentTextColor);
+            fileList.setSelectionBackground(currentAccentColor);
+            fileList.setSelectionForeground(Color.WHITE);
         }
+
+        stylePrimaryComponents();
+        updateFileListTitle();
+        setSectionBorder(logScrollPane, "Log de Compilación", currentBorderColor, currentTextColor);
         
         themeButton.setText(isDarkTheme ? "☀️" : "🌙");
         SwingUtilities.updateComponentTreeUI(this);
+    }
+
+    private void stylePrimaryComponents() {
+        Color bg = isDarkTheme ? DARK_BG : LIGHT_BG;
+        Color panel = isDarkTheme ? DARK_PANEL : LIGHT_PANEL;
+        Color surface = isDarkTheme ? DARK_SURFACE : LIGHT_SURFACE;
+
+        currentTextColor = isDarkTheme ? DARK_FG : LIGHT_FG;
+        currentBorderColor = isDarkTheme ? DARK_BORDER : LIGHT_BORDER;
+        currentAccentColor = isDarkTheme ? DARK_ACCENT : LIGHT_ACCENT;
+        currentMutedTextColor = isDarkTheme ? DARK_MUTED : LIGHT_MUTED;
+
+        getContentPane().setBackground(bg);
+
+        stylePanel(topPanel, panel);
+        stylePanel(buttonsPanel, panel);
+        stylePanel(historyPanel, panel);
+        stylePanel(bottomPanel, panel);
+        stylePanel(actionPanel, panel);
+
+        splitPane.setBackground(bg);
+        splitPane.setForeground(currentBorderColor);
+
+        if (fileScrollPane != null) {
+            fileScrollPane.getViewport().setBackground(surface);
+        }
+        if (logScrollPane != null) {
+            logScrollPane.getViewport().setBackground(surface);
+        }
+
+        styleButton(selectFilesButton, true);
+        styleButton(selectFolderButton, false);
+        styleButton(clearButton, false);
+        styleButton(compileButton, true);
+        styleButton(previewButton, false);
+        styleButton(themeButton, false);
+
+        historyComboBox.setBackground(surface);
+        historyComboBox.setForeground(currentTextColor);
+        historyComboBox.setBorder(new LineBorder(currentBorderColor, 1, true));
+
+        progressBar.setBackground(isDarkTheme ? DARK_PANEL : LIGHT_PANEL);
+        progressBar.setForeground(currentAccentColor);
+        progressBar.setString(progressBar.getString() == null ? "Listo" : progressBar.getString());
+        progressBar.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+    }
+
+    private void stylePanel(JPanel panel, Color color) {
+        if (panel != null) {
+            panel.setBackground(color);
+            panel.setOpaque(true);
+        }
+    }
+
+    private void styleButton(JButton button, boolean primary) {
+        if (button == null) {
+            return;
+        }
+
+        button.setFocusPainted(false);
+        button.setOpaque(true);
+
+        Color enabledBg = primary ? currentAccentColor : (isDarkTheme ? DARK_SURFACE : LIGHT_SURFACE);
+        Color enabledFg = primary ? Color.WHITE : currentTextColor;
+        Color disabledBg = isDarkTheme ? new Color(55, 58, 66) : new Color(232, 237, 245);
+        Color disabledFg = isDarkTheme ? new Color(130, 137, 150) : new Color(145, 153, 169);
+
+        if (button.isEnabled()) {
+            button.setBackground(enabledBg);
+            button.setForeground(enabledFg);
+            button.setBorder(new LineBorder(primary ? currentAccentColor.darker() : currentBorderColor, 1, true));
+        } else {
+            button.setBackground(disabledBg);
+            button.setForeground(disabledFg);
+            button.setBorder(new LineBorder(currentBorderColor, 1, true));
+        }
+    }
+
+    private void setSectionBorder(JScrollPane scrollPane, String title, Color borderColor, Color titleColor) {
+        if (scrollPane == null) {
+            return;
+        }
+
+        TitledBorder border = BorderFactory.createTitledBorder(new LineBorder(borderColor, 1, true), title);
+        border.setTitleColor(titleColor);
+        border.setTitleFont(UI_BOLD_FONT);
+        scrollPane.setBorder(border);
     }
 
     private void applyThemeToComponent(Container container, Color bg, Color fg, Color panelBg) {
@@ -313,7 +477,7 @@ public class JasperCompilerGUI extends JFrame {
             public void dragEnter(DropTargetDragEvent dtde) {
                 if (isDragAcceptable(dtde)) {
                     dtde.acceptDrag(DnDConstants.ACTION_COPY);
-                    fileList.setBorder(BorderFactory.createLineBorder(new Color(0, 120, 215), 2));
+                    setSectionBorder(fileScrollPane, getFileListTitle(), currentAccentColor, currentAccentColor);
                 } else {
                     dtde.rejectDrag();
                 }
@@ -327,12 +491,12 @@ public class JasperCompilerGUI extends JFrame {
 
             @Override
             public void dragExit(DropTargetEvent dte) {
-                fileList.setBorder(null);
+                updateFileListTitle();
             }
 
             @Override
             public void drop(DropTargetDropEvent dtde) {
-                fileList.setBorder(null);
+                updateFileListTitle();
                 try {
                     dtde.acceptDrop(DnDConstants.ACTION_COPY);
                     Transferable transferable = dtde.getTransferable();
@@ -434,12 +598,15 @@ public class JasperCompilerGUI extends JFrame {
     }
 
     private void updateFileListTitle() {
-        JScrollPane scrollPane = (JScrollPane) fileList.getParent().getParent();
+        setSectionBorder(fileScrollPane, getFileListTitle(), currentBorderColor, currentTextColor);
+    }
+
+    private String getFileListTitle() {
         String title = "Archivos JRXML (" + selectedFiles.size() + ")";
         if (selectedFiles.isEmpty()) {
             title += " - Arrastre aquí o Ctrl+O";
         }
-        scrollPane.setBorder(BorderFactory.createTitledBorder(title));
+        return title;
     }
 
     private void updatePreviewButton() {
@@ -554,8 +721,28 @@ public class JasperCompilerGUI extends JFrame {
             }
 
             private void compileFile(File file) {
+                File effectiveInput = file;
+                File tempSanitizedFile = null;
                 try {
-                    String inputFile = file.getPath();
+                    SanitizeResult sanitizeResult = createSanitizedJrxmlCopyIfNeeded(file);
+                    effectiveInput = sanitizeResult.file;
+                    if (!effectiveInput.equals(file)) {
+                        tempSanitizedFile = effectiveInput;
+                        if (sanitizeResult.removedRootUuid) {
+                            publish(new Object[]{"log", "  ! UUID detectado en raiz: se aplico saneamiento automatico"});
+                        }
+                        if (sanitizeResult.convertedQueryTag) {
+                            publish(new Object[]{"log", "  ! Etiqueta <query> detectada: convertida a <queryString>"});
+                        }
+                        if (sanitizeResult.convertedVariableExpressionTag) {
+                            publish(new Object[]{"log", "  ! Etiqueta <expression> en variable: convertida a <variableExpression>"});
+                        }
+                        if (sanitizeResult.convertedGroupExpressionTag) {
+                            publish(new Object[]{"log", "  ! Etiqueta <expression> en group: convertida a <groupExpression>"});
+                        }
+                    }
+
+                    String inputFile = effectiveInput.getPath();
                     String outputFile = "output/" + file.getName().replace(".jrxml", ".jasper");
                     
                     publish(new Object[]{"log", "Compilando: " + file.getName() + "..."});
@@ -569,6 +756,10 @@ public class JasperCompilerGUI extends JFrame {
                 } catch (Exception e) {
                     publish(new Object[]{"log", "  ✗ ERROR: " + e.getMessage()});
                     errorCount++;
+                } finally {
+                    if (tempSanitizedFile != null && tempSanitizedFile.exists() && !tempSanitizedFile.delete()) {
+                        publish(new Object[]{"log", "  ! Aviso: no se pudo eliminar temporal " + tempSanitizedFile.getName()});
+                    }
                 }
             }
 
@@ -597,6 +788,88 @@ public class JasperCompilerGUI extends JFrame {
         worker.execute();
     }
 
+    private SanitizeResult createSanitizedJrxmlCopyIfNeeded(File file) throws IOException {
+        String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        boolean removedRootUuid = false;
+        boolean convertedQueryTag = false;
+        boolean convertedVariableExpressionTag = false;
+        boolean convertedGroupExpressionTag = false;
+
+        Matcher uuidMatcher = ROOT_UUID_PATTERN.matcher(content);
+        if (uuidMatcher.find()) {
+            content = uuidMatcher.replaceFirst("$1");
+            removedRootUuid = true;
+        }
+
+        Matcher openQueryMatcher = OPEN_QUERY_PATTERN.matcher(content);
+        if (openQueryMatcher.find()) {
+            content = openQueryMatcher.replaceAll("<queryString$1>");
+            content = CLOSE_QUERY_PATTERN.matcher(content).replaceAll("</queryString>");
+            convertedQueryTag = true;
+        }
+
+        Matcher variableBlockMatcher = VARIABLE_BLOCK_PATTERN.matcher(content);
+        StringBuffer convertedContent = new StringBuffer();
+        while (variableBlockMatcher.find()) {
+            String variableBlock = variableBlockMatcher.group();
+            String updatedBlock = OPEN_EXPRESSION_PATTERN.matcher(variableBlock).replaceAll("<variableExpression$1>");
+            updatedBlock = CLOSE_EXPRESSION_PATTERN.matcher(updatedBlock).replaceAll("</variableExpression>");
+            if (!updatedBlock.equals(variableBlock)) {
+                convertedVariableExpressionTag = true;
+            }
+            variableBlockMatcher.appendReplacement(convertedContent, Matcher.quoteReplacement(updatedBlock));
+        }
+        variableBlockMatcher.appendTail(convertedContent);
+        if (convertedVariableExpressionTag) {
+            content = convertedContent.toString();
+        }
+
+        Matcher groupBlockMatcher = GROUP_BLOCK_PATTERN.matcher(content);
+        StringBuffer groupConvertedContent = new StringBuffer();
+        while (groupBlockMatcher.find()) {
+            String groupBlock = groupBlockMatcher.group();
+            String updatedBlock = OPEN_EXPRESSION_PATTERN.matcher(groupBlock).replaceAll("<groupExpression$1>");
+            updatedBlock = CLOSE_EXPRESSION_PATTERN.matcher(updatedBlock).replaceAll("</groupExpression>");
+            if (!updatedBlock.equals(groupBlock)) {
+                convertedGroupExpressionTag = true;
+            }
+            groupBlockMatcher.appendReplacement(groupConvertedContent, Matcher.quoteReplacement(updatedBlock));
+        }
+        groupBlockMatcher.appendTail(groupConvertedContent);
+        if (convertedGroupExpressionTag) {
+            content = groupConvertedContent.toString();
+        }
+
+        if (!removedRootUuid && !convertedQueryTag && !convertedVariableExpressionTag && !convertedGroupExpressionTag) {
+            return new SanitizeResult(file, false, false, false, false);
+        }
+        Path tempDir = new File("output/.tmp").toPath();
+        Files.createDirectories(tempDir);
+
+        String baseName = file.getName().replace(".jrxml", "");
+        Path tempFile = Files.createTempFile(tempDir, baseName + "-sanitized-", ".jrxml");
+        Files.write(tempFile, content.getBytes(StandardCharsets.UTF_8));
+        return new SanitizeResult(tempFile.toFile(), removedRootUuid, convertedQueryTag,
+            convertedVariableExpressionTag, convertedGroupExpressionTag);
+    }
+
+    private static class SanitizeResult {
+        private final File file;
+        private final boolean removedRootUuid;
+        private final boolean convertedQueryTag;
+        private final boolean convertedVariableExpressionTag;
+        private final boolean convertedGroupExpressionTag;
+
+        private SanitizeResult(File file, boolean removedRootUuid, boolean convertedQueryTag,
+                              boolean convertedVariableExpressionTag, boolean convertedGroupExpressionTag) {
+            this.file = file;
+            this.removedRootUuid = removedRootUuid;
+            this.convertedQueryTag = convertedQueryTag;
+            this.convertedVariableExpressionTag = convertedVariableExpressionTag;
+            this.convertedGroupExpressionTag = convertedGroupExpressionTag;
+        }
+    }
+
     private void setButtonsEnabled(boolean enabled) {
         compileButton.setEnabled(enabled && !selectedFiles.isEmpty());
         selectFilesButton.setEnabled(enabled);
@@ -604,6 +877,13 @@ public class JasperCompilerGUI extends JFrame {
         clearButton.setEnabled(enabled);
         previewButton.setEnabled(enabled && fileList.getSelectedIndex() >= 0);
         historyComboBox.setEnabled(enabled);
+
+        styleButton(selectFilesButton, true);
+        styleButton(selectFolderButton, false);
+        styleButton(clearButton, false);
+        styleButton(compileButton, true);
+        styleButton(previewButton, false);
+        styleButton(themeButton, false);
     }
 
     private void log(String message) {
